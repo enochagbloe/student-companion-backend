@@ -11,6 +11,7 @@ import remindersRoutes from './modules/reminders/reminders.routes';
 import meRoutes from './modules/me/me.routes';
 import aiRoutes from './modules/ai/ai.routes';
 import notificationsRoutes from './modules/notifications/notifications.routes';
+import progressRoutes from './modules/progress/progress.routes';
 import { errorHandler } from './middleware/error-handler';
 
 const app = express();
@@ -41,6 +42,7 @@ app.use('/api/v1/reminders', remindersRoutes);
 app.use('/api/v1/me', meRoutes);
 app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/notifications', notificationsRoutes);
+app.use('/api/v1/progress', progressRoutes);
 
 app.use((_req, _res, next) => {
   next(createHttpError(404, 'Route not found.'));

@@ -532,3 +532,24 @@ Body:
 ```json
 { "token": "ExponentPushToken[xxxx]", "title": "Test", "body": "Hello" }
 ```
+
+## Progress (Protected)
+
+### `GET /progress/summary`
+Return the Progress Card metrics for the user.
+
+Response `200`:
+```json
+{
+  "score": 84,
+  "maxScore": 100,
+  "weeklyMinutes": 260,
+  "weeklyGoal": 360,
+  "daysUntilTest": 5,
+  "testDateLabel": "Next quiz • Apr 1",
+  "progress": 0.64,
+  "streakDays": 7,
+  "completedTasks": 12,
+  "focusSessions": 5
+}
+```

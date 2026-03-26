@@ -66,6 +66,7 @@ Base URL: `/api/v1`
 - `POST /notifications/register`
 - `DELETE /notifications/register`
 - `POST /notifications/test`
+- `GET /progress/summary`
 
 Auth-protected routes use `Authorization: Bearer <token>`.
 Detailed frontend contract: see `ENDPOINTS.md`.
