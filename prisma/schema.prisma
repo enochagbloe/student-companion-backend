@@ -1,0 +1,171 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  STUDENT
+}
+
+enum WeekDay {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+}
+
+enum AiRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  googleId     String?       @unique
+  passwordHash String?
+  role         UserRole      @default(STUDENT)
+  timezone     String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  timetable    Timetable[]
+  syllabus     Syllabus?
+  studyPlan    StudyPlan?
+  chatMessages ChatMessage[]
+  aiConversations AiConversation[]
+  aiMemory       AiMemory[]
+  studySchedules StudySchedule[]
+  pushTokens     PushToken[]
+}
+
+model Timetable {
+  id         String   @id @default(cuid())
+  userId     String
+  courseName String
+  courseCode String?
+  courseTitle String?
+  venue      String?
+  day        WeekDay
+  startTime  String
+  endTime    String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Syllabus {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  fileUrl       String
+  extractedText String   @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model StudyPlan {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  content   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  message   String   @db.Text
+  role      ChatRole
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model AiConversation {
+  id        String      @id @default(cuid())
+  userId    String
+  title     String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  AiMessage[]
+
+  @@index([userId, updatedAt])
+}
+
+model AiMessage {
+  id             String         @id @default(cuid())
+  conversationId String
+  role           AiRole
+  content        String         @db.Text
+  contentParts   Json
+  createdAt      DateTime       @default(now())
+  conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+model AiMemory {
+  id         String   @id @default(cuid())
+  userId     String
+  key        String
+  value      Json
+  source     String
+  confidence Float
+  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([userId])
+}
+
+model StudySchedule {
+  id        String   @id @default(cuid())
+  userId    String
+  goal      String?
+  days      Int?
+  dailyMinutes Int?
+  constraints Json?
+  courses   Json?
+  schedule  Json
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+enum PushPlatform {
+  IOS
+  ANDROID
+}
+
+model PushToken {
+  id         String       @id @default(cuid())
+  userId     String
+  token      String       @unique
+  platform   PushPlatform
+  lastSeenAt DateTime
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
