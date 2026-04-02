@@ -1,11 +1,13 @@
 import createHttpError from 'http-errors';
 import { DateTime } from 'luxon';
-import { AiRole } from '@prisma/client';
+import { AiRole, TaskSource, TaskStatus } from '@prisma/client';
 import { env } from '../../../config/env';
 import { aiRepository } from '../repositories/ai.repository';
 import { aiClient } from '../../../utils/openai';
 import { contentPartArraySchema } from '../validators/ai.validator';
 import { prisma } from '../../../config/prisma';
+import { tasksRepository } from '../../tasks/repositories/tasks.repository';
+import { calendarService } from '../../calendar/services/calendar.service';
 import { timetableStatusService } from '../../timetable/services/timetable-status.service';
 import { remindersService } from '../../reminders/services/reminders.service';
 import { studyPlanRepository } from '../../study-plan/repositories/study-plan.repository';
@@ -16,7 +18,18 @@ type ContentPart =
   | { type: 'code'; language?: string; code: string }
   | { type: 'list'; items: string[] }
   | { type: 'warning'; text: string }
-  | { type: 'action'; action: 'create_schedule' | 'start_focus' | 'open_timetable'; payload?: any };
+  | {
+      type: 'action';
+      action:
+        | 'create_schedule'
+        | 'start_focus'
+        | 'open_timetable'
+        | 'create_task'
+        | 'update_task'
+        | 'delete_task'
+        | 'read_tasks';
+      payload?: any;
+    };
 
 type AssistantStatusType =
   | 'idle'
@@ -36,6 +49,10 @@ Tone rules:
 
 Coach mode rules:
 - Default to guidance: a process, checklist, hints, and next steps.\n- If preferences.noDirectAnswers is true, avoid giving full final answers for assignment-like questions.\n- If user explicitly asks for the full answer and confirms, you can provide it.\n- If you don't have enough context, say so and ask for it.\n- Do not invent university-specific facts unless provided in context or memory.
+
+Study cards and calendar:
+- When the user asks to create a study card, add a ContentPart action:\n  {\"type\":\"action\",\"action\":\"create_task\",\"payload\":{\"title\":string,\"description\"?:string,\"courseCode\"?:string,\"courseTitle\"?:string,\"durationMinutes\"?:number,\"scheduledFor\"?:ISO string}}\n+- Assume created tasks should appear on the calendar at scheduledFor time.
+- To edit a study card, use:\n  {\"type\":\"action\",\"action\":\"update_task\",\"payload\":{\"id\":string,\"patch\":{...}}}\n+- To delete a study card, use:\n  {\"type\":\"action\",\"action\":\"delete_task\",\"payload\":{\"id\":string}}\n+- To read tasks, use:\n  {\"type\":\"action\",\"action\":\"read_tasks\",\"payload\":{\"status\"?:string,\"limit\"?:number}}\n+- Assume created tasks should appear on the calendar at scheduledFor time.
 
 Output format:
 - You must return ONLY valid JSON, with this schema:
@@ -81,6 +98,23 @@ const toRawContent = (parts: ContentPart[]): string => {
     })
     .filter(Boolean)
     .join('\n\n');
+};
+
+const toScheduleDate = (value?: string) => {
+  if (!value) return DateTime.now().plus({ minutes: 30 }).toJSDate();
+  const dt = DateTime.fromISO(value, { setZone: true });
+  return dt.isValid ? dt.toJSDate() : DateTime.now().plus({ minutes: 30 }).toJSDate();
+};
+
+const taskKey = (payload: any) => {
+  const key = {
+    title: String(payload?.title ?? 'Study session').trim(),
+    courseCode: String(payload?.courseCode ?? '').trim(),
+    courseTitle: String(payload?.courseTitle ?? '').trim(),
+    durationMinutes: Number(payload?.durationMinutes ?? 0),
+    scheduledFor: String(payload?.scheduledFor ?? '')
+  };
+  return JSON.stringify(key);
 };
 
 const getDailyWindowUtc = (timezone: string) => {
@@ -286,6 +320,97 @@ export const aiService = {
 
     const assistantRaw = toRawContent(validatedParts);
 
+    const createdTasks = [];
+    const updatedTasks = [];
+    const deletedTaskIds = [];
+    const tasksSnapshot = [];
+    const seen = new Set<string>();
+    for (const part of validatedParts) {
+      if (part.type === 'action' && part.action === 'create_task') {
+        const payload = part.payload ?? {};
+        const key = taskKey(payload);
+        if (seen.has(key)) {
+          continue;
+        }
+        seen.add(key);
+        const scheduledFor = toScheduleDate(payload.scheduledFor);
+
+        // De-dupe against very recent identical tasks (e.g., double-submit or duplicate model output).
+        const recentWindowStart = DateTime.fromJSDate(scheduledFor).minus({ minutes: 2 }).toJSDate();
+        const recentWindowEnd = DateTime.fromJSDate(scheduledFor).plus({ minutes: 2 }).toJSDate();
+        const existing = await prisma.studyTask.findFirst({
+          where: {
+            userId: input.userId,
+            source: TaskSource.AI,
+            title: payload.title ?? 'Study session',
+            courseCode: payload.courseCode ?? null,
+            courseTitle: payload.courseTitle ?? null,
+            durationMinutes: payload.durationMinutes ?? null,
+            scheduledFor: { gte: recentWindowStart, lte: recentWindowEnd }
+          }
+        });
+        if (existing) {
+          createdTasks.push(existing);
+          continue;
+        }
+
+        const task = await tasksRepository.create({
+          userId: input.userId,
+          title: payload.title ?? 'Study session',
+          description: payload.description ?? null,
+          courseCode: payload.courseCode ?? null,
+          courseTitle: payload.courseTitle ?? null,
+          durationMinutes: payload.durationMinutes ?? null,
+          status: TaskStatus.PENDING,
+          source: TaskSource.AI,
+          scheduledFor
+        });
+        await calendarService.createForTask({
+          userId: input.userId,
+          taskId: task.id,
+          title: task.title,
+          description: task.description,
+          scheduledFor: task.scheduledFor,
+          durationMinutes: task.durationMinutes
+        });
+        createdTasks.push(task);
+      }
+      if (part.type === 'action' && part.action === 'update_task') {
+        const payload = part.payload ?? {};
+        if (payload.id) {
+          const patch = payload.patch ?? {};
+          const updated = await tasksRepository.update(String(payload.id), {
+            title: patch.title ?? undefined,
+            description: patch.description ?? undefined,
+            courseCode: patch.courseCode ?? undefined,
+            courseTitle: patch.courseTitle ?? undefined,
+            durationMinutes: patch.durationMinutes ?? undefined,
+            status: patch.status ? (String(patch.status).toUpperCase() as TaskStatus) : undefined,
+            scheduledFor: patch.scheduledFor ? toScheduleDate(patch.scheduledFor) : undefined
+          });
+          updatedTasks.push(updated);
+        }
+      }
+      if (part.type === 'action' && part.action === 'delete_task') {
+        const payload = part.payload ?? {};
+        if (payload.id) {
+          await tasksRepository.delete(String(payload.id));
+          deletedTaskIds.push(String(payload.id));
+        }
+      }
+      if (part.type === 'action' && part.action === 'read_tasks') {
+        const payload = part.payload ?? {};
+        const list = await tasksRepository.list(
+          input.userId,
+          payload.status && payload.status !== 'all'
+            ? { status: String(payload.status).toUpperCase() as TaskStatus }
+            : {},
+          payload.limit ? Number(payload.limit) : 10
+        );
+        tasksSnapshot.push(...list);
+      }
+    }
+
     const assistantMsg = await aiRepository.createMessage({
       conversationId,
       role: AiRole.ASSISTANT,
@@ -324,6 +449,10 @@ export const aiService = {
         messageId: assistantMsg.id,
         contentParts: validatedParts,
         memoryWrites: memoryWrites as Array<{ key: string; value: any; confidence: number }>,
+        createdTasks,
+        updatedTasks,
+        deletedTaskIds,
+        tasksSnapshot,
         status
       },
       rateLimit: {

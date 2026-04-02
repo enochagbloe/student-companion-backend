@@ -441,6 +441,10 @@ Response `200`:
       { "type": "list", "items": ["15 min", "30 min", "60 min"] }
     ],
     "memoryWrites": [],
+    "createdTasks": [],
+    "updatedTasks": [],
+    "deletedTaskIds": [],
+    "tasksSnapshot": [],
     "status": {
       "type": "reading_calendar",
       "text": "Reading your timetable and reminders..."
@@ -553,3 +557,61 @@ Response `200`:
   "focusSessions": 5
 }
 ```
+
+## Courses (Protected)
+
+### `GET /courses/topics`
+Return current topic per course.
+
+### `POST /courses/topics`
+Set/update current topic per course.
+
+Body:
+```json
+{ "courseCode": "CS 204", "courseTitle": "Intro to CS", "currentTopic": "Stacks and Queues" }
+```
+
+## Tasks (Protected)
+
+### `GET /tasks?status=pending|completed|dismissed|all&date=YYYY-MM-DD&limit=50`
+List study tasks.
+
+### `POST /tasks`
+Create a manual task.
+
+### `PATCH /tasks/:id`
+Update/complete/reschedule task.
+
+### `DELETE /tasks/:id`
+Remove task.
+
+### `POST /tasks/:id/accept`
+Accept AI-suggested task.
+
+## AI Task Suggestions (Protected)
+
+### `POST /ai/tasks/suggest`
+Create AI-suggested task cards.
+
+Body:
+```json
+{
+  "conversationId": "cuid",
+  "context": {
+    "courseCode": "CS 204",
+    "courseTitle": "Intro to CS",
+    "topic": "Stacks",
+    "difficulty": "confused",
+    "timeAvailableMinutes": 40
+  },
+  "notes": "User said they don’t understand stacks push/pop"
+}
+```
+
+## Focus Sessions (Protected)
+
+### `POST /focus-sessions`
+Create a focus session.
+
+### `GET /focus-sessions?range=week`
+List focus sessions (week range supported).

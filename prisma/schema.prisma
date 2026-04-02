@@ -49,6 +49,10 @@ model User {
   aiMemory       AiMemory[]
   studySchedules StudySchedule[]
   pushTokens     PushToken[]
+  courseTopics   CourseTopic[]
+  studyTasks     StudyTask[]
+  focusSessions  FocusSession[]
+  calendarEvents CalendarEvent[]
 }
 
 model Timetable {
@@ -157,6 +161,17 @@ enum PushPlatform {
   ANDROID
 }
 
+enum TaskStatus {
+  PENDING
+  COMPLETED
+  DISMISSED
+}
+
+enum TaskSource {
+  USER
+  AI
+}
+
 model PushToken {
   id         String       @id @default(cuid())
   userId     String
@@ -168,4 +183,67 @@ model PushToken {
   user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model CourseTopic {
+  id           String   @id @default(cuid())
+  userId       String
+  courseCode   String
+  courseTitle  String
+  currentTopic String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseCode])
+  @@index([userId])
+}
+
+model StudyTask {
+  id              String     @id @default(cuid())
+  userId          String
+  title           String
+  description     String?
+  courseCode      String?
+  courseTitle     String?
+  durationMinutes Int?
+  status          TaskStatus @default(PENDING)
+  source          TaskSource @default(USER)
+  scheduledFor    DateTime?
+  acceptedAt      DateTime?
+  dismissedAt     DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([userId, scheduledFor])
+}
+
+model FocusSession {
+  id              String   @id @default(cuid())
+  userId          String
+  durationMinutes Int
+  courseCode      String?
+  topic           String?
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model CalendarEvent {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  description String?
+  startAt     DateTime
+  endAt       DateTime?
+  source      String
+  sourceId    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, startAt])
 }

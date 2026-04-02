@@ -12,6 +12,10 @@ import meRoutes from './modules/me/me.routes';
 import aiRoutes from './modules/ai/ai.routes';
 import notificationsRoutes from './modules/notifications/notifications.routes';
 import progressRoutes from './modules/progress/progress.routes';
+import coursesRoutes from './modules/courses/courses.routes';
+import tasksRoutes from './modules/tasks/tasks.routes';
+import focusSessionsRoutes from './modules/focus-sessions/focus-sessions.routes';
+import aiTasksRoutes from './modules/ai-tasks/ai-tasks.routes';
 import { errorHandler } from './middleware/error-handler';
 
 const app = express();
@@ -43,6 +47,10 @@ app.use('/api/v1/me', meRoutes);
 app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/notifications', notificationsRoutes);
 app.use('/api/v1/progress', progressRoutes);
+app.use('/api/v1/courses', coursesRoutes);
+app.use('/api/v1/tasks', tasksRoutes);
+app.use('/api/v1/focus-sessions', focusSessionsRoutes);
+app.use('/api/v1/ai/tasks', aiTasksRoutes);
 
 app.use((_req, _res, next) => {
   next(createHttpError(404, 'Route not found.'));

@@ -67,6 +67,16 @@ Base URL: `/api/v1`
 - `DELETE /notifications/register`
 - `POST /notifications/test`
 - `GET /progress/summary`
+- `GET /courses/topics`
+- `POST /courses/topics`
+- `GET /tasks`
+- `POST /tasks`
+- `PATCH /tasks/:id`
+- `DELETE /tasks/:id`
+- `POST /tasks/:id/accept`
+- `POST /ai/tasks/suggest`
+- `POST /focus-sessions`
+- `GET /focus-sessions`
 
 Auth-protected routes use `Authorization: Bearer <token>`.
 Detailed frontend contract: see `ENDPOINTS.md`.

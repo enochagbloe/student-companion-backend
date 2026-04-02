@@ -28,7 +28,19 @@ const contentPartSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('code'), language: z.string().min(1).optional(), code: z.string() }),
   z.object({ type: z.literal('list'), items: z.array(z.string()) }),
   z.object({ type: z.literal('warning'), text: z.string() }),
-  z.object({ type: z.literal('action'), action: z.enum(['create_schedule', 'start_focus', 'open_timetable']), payload: z.any().optional() })
+  z.object({
+    type: z.literal('action'),
+    action: z.enum([
+      'create_schedule',
+      'start_focus',
+      'open_timetable',
+      'create_task',
+      'update_task',
+      'delete_task',
+      'read_tasks'
+    ]),
+    payload: z.any().optional()
+  })
 ]);
 
 export const aiChatSchema = z.object({
